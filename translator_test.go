@@ -191,7 +191,7 @@ func TestMapBundleStructure(t *testing.T) {
 
 	tests := []struct {
 		Description    string
-		Input          map[string]interface{}
+		Input          map[string]any
 		ExpectedBundle bundle
 	}{
 		{
@@ -201,12 +201,12 @@ func TestMapBundleStructure(t *testing.T) {
 		},
 		{
 			Description:    "Empty Input",
-			Input:          make(map[string]interface{}),
+			Input:          make(map[string]any),
 			ExpectedBundle: make(bundle),
 		},
 		{
 			Description: "Simple string Input",
-			Input: map[string]interface{}{
+			Input: map[string]any{
 				"simple":       "translation",
 				"variabilized": "translation {{ .translation }}",
 			},
@@ -217,10 +217,10 @@ func TestMapBundleStructure(t *testing.T) {
 		},
 		{
 			Description: "Different types handled",
-			Input: map[string]interface{}{
+			Input: map[string]any{
 				"pi":                                  3.14,
 				"answer_to_ultimate_question_of_life": 42,
-				"some_prime_numbers":                  []interface{}{2, "3", 5.0, 7},
+				"some_prime_numbers":                  []any{2, "3", 5.0, 7},
 			},
 			ExpectedBundle: bundle{
 				"pi":                                  []string{"3.14"},
@@ -230,14 +230,14 @@ func TestMapBundleStructure(t *testing.T) {
 		},
 		{
 			Description: "Deep structure",
-			Input: map[string]interface{}{
-				"command": map[string]interface{}{
-					"salutation": map[string]interface{}{
+			Input: map[string]any{
+				"command": map[string]any{
+					"salutation": map[string]any{
 						"hi":  "Hello there!",
-						"bye": []interface{}{"Bye {{ .anyone }}!", "See u {{ .anyone }}"},
+						"bye": []any{"Bye {{ .anyone }}!", "See u {{ .anyone }}"},
 					},
-					"speak": map[string]interface{}{
-						"random": []interface{}{"love to talk", "how are u?", "u're so interesting"},
+					"speak": map[string]any{
+						"random": []any{"love to talk", "how are u?", "u're so interesting"},
 					},
 				},
 				"panic": "I've panicked!",

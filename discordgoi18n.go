@@ -1,6 +1,8 @@
 package discordgoi18n
 
 import (
+	"io/fs"
+
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -21,6 +23,12 @@ func SetDefault(language discordgo.Locale) {
 // Not thread-safe; designed to be called during initialization.
 func LoadBundle(language discordgo.Locale, file string) error {
 	return instance.LoadBundle(language, file)
+}
+
+// LoadBundleFS loads a translation file corresponding to a specified locale through fs.FS.
+// Not thread-safe; designed to be called during initialization.
+func LoadBundleFS(language discordgo.Locale, fs fs.FS, file string) error {
+	return instance.LoadBundleFS(language, fs, file)
 }
 
 // Get gets a translation corresponding to a locale and a key.

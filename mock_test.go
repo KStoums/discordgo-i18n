@@ -12,6 +12,7 @@ func TestMock(t *testing.T) {
 	mock := newMock()
 	mock.SetDefault(discordgo.ChineseCN)
 	assert.NoError(t, mock.LoadBundle(discordgo.SpanishES, ""))
+	assert.NoError(t, mock.LoadBundleFS(discordgo.SpanishES, nil, ""))
 	assert.Empty(t, mock.Get(discordgo.Croatian, "", nil))
 	assert.Empty(t, mock.GetDefault("", nil))
 	assert.Nil(t, mock.GetLocalizations("", nil))
