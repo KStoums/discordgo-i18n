@@ -38,6 +38,15 @@ func (mock *translatorMock) LoadBundleFS(locale discordgo.Locale, fs fs.FS, file
 	return nil
 }
 
+func (mock *translatorMock) LoadBundleContent(locale discordgo.Locale, content map[string]any) error {
+	if mock.LoadBundleContentFunc != nil {
+		return mock.LoadBundleContentFunc(locale, content)
+	}
+
+	log.Warn().Msgf("LoadBundleContentFunc not mocked")
+	return nil
+}
+
 func (mock *translatorMock) Get(locale discordgo.Locale, key string, variables Vars) string {
 	if mock.GetFunc != nil {
 		return mock.GetFunc(locale, key, variables)

@@ -30,12 +30,12 @@ func newTranslator() *translatorImpl {
 	}
 }
 
-func (translator *translatorImpl) SetDefault(language discordgo.Locale) {
-	translator.defaultLocale = language
+func (translator *translatorImpl) SetDefault(locale discordgo.Locale) {
+	translator.defaultLocale = locale
 }
 
 func (translator *translatorImpl) LoadBundle(locale discordgo.Locale, path string) error {
-	cachePath := translator.buildCachePath(path, osfs)
+	cachePath := translator.buildCachePath(path, osSource)
 	loadedBundle, found := translator.loadedBundles[cachePath]
 	if !found {
 		buf, err := os.ReadFile(path)
@@ -53,7 +53,7 @@ func (translator *translatorImpl) LoadBundle(locale discordgo.Locale, path strin
 }
 
 func (translator *translatorImpl) LoadBundleFS(locale discordgo.Locale, fsys fs.FS, path string) error {
-	cachePath := translator.buildCachePath(path, fsfs)
+	cachePath := translator.buildCachePath(path, fsSource)
 	loadedBundle, found := translator.loadedBundles[cachePath]
 	if !found {
 		buf, err := fs.ReadFile(fsys, path)
@@ -62,6 +62,23 @@ func (translator *translatorImpl) LoadBundleFS(locale discordgo.Locale, fsys fs.
 		}
 
 		return translator.loadBundleBuf(locale, buf, cachePath)
+	}
+
+	log.Debug().
+		Msgf("Bundle '%s' loaded with '%s' content (already loaded for other locales)", locale, cachePath)
+	translator.translations[locale] = loadedBundle
+	return nil
+}
+
+func (translator *translatorImpl) LoadBundleContent(locale discordgo.Locale, content map[string]any) error {
+	cachePath := translator.buildCachePath(fmt.Sprintf("%p", content), contentSource)
+	loadedBundle, found := translator.loadedBundles[cachePath]
+	if !found {
+		newBundle := translator.mapBundleStructure(content)
+		log.Debug().Msgf("Bundle '%s' loaded with '%s' content", locale, cachePath)
+		translator.loadedBundles[cachePath] = newBundle
+		translator.translations[locale] = newBundle
+		return nil
 	}
 
 	log.Debug().
@@ -175,6 +192,6 @@ func (translator *translatorImpl) mapBundleStructure(jsonContent map[string]any)
 	return bundle
 }
 
-func (translator *translatorImpl) buildCachePath(path string, fs filesystem) string {
-	return fmt.Sprintf("%v:%v", fs, path)
+func (translator *translatorImpl) buildCachePath(path string, source source) string {
+	return fmt.Sprintf("%v:%v", source, path)
 }

@@ -1,6 +1,7 @@
 package discordgoi18n
 
 import (
+	"io/fs"
 	"testing"
 
 	"github.com/bwmarrin/discordgo"
@@ -12,7 +13,8 @@ func TestMock(t *testing.T) {
 	mock := newMock()
 	mock.SetDefault(discordgo.ChineseCN)
 	assert.NoError(t, mock.LoadBundle(discordgo.SpanishES, ""))
-	assert.NoError(t, mock.LoadBundleFS(discordgo.SpanishES, nil, ""))
+	assert.NoError(t, mock.LoadBundleFS(discordgo.Czech, nil, ""))
+	assert.NoError(t, mock.LoadBundleContent(discordgo.Danish, nil))
 	assert.Empty(t, mock.Get(discordgo.Croatian, "", nil))
 	assert.Empty(t, mock.GetDefault("", nil))
 	assert.Nil(t, mock.GetLocalizations("", nil))
@@ -22,6 +24,14 @@ func TestMock(t *testing.T) {
 		called = true
 	}
 	mock.LoadBundleFunc = func(_ discordgo.Locale, _ string) error {
+		called = true
+		return nil
+	}
+	mock.LoadBundleFSFunc = func(_ discordgo.Locale, _ fs.FS, _ string) error {
+		called = true
+		return nil
+	}
+	mock.LoadBundleContentFunc = func(_ discordgo.Locale, _ map[string]any) error {
 		called = true
 		return nil
 	}
@@ -44,6 +54,14 @@ func TestMock(t *testing.T) {
 
 	called = false
 	assert.NoError(t, mock.LoadBundle(discordgo.SpanishES, ""))
+	assert.True(t, called)
+
+	called = false
+	assert.NoError(t, mock.LoadBundleFS(discordgo.Czech, nil, ""))
+	assert.True(t, called)
+
+	called = false
+	assert.NoError(t, mock.LoadBundleContent(discordgo.Danish, nil))
 	assert.True(t, called)
 
 	called = false

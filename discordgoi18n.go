@@ -3,6 +3,8 @@ package discordgoi18n
 import (
 	"io/fs"
 
+	"maps"
+
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -15,20 +17,26 @@ func init() {
 
 // SetDefaults sets the locale used as a fallback.
 // Not thread-safe; designed to be called during initialization.
-func SetDefault(language discordgo.Locale) {
-	instance.SetDefault(language)
+func SetDefault(locale discordgo.Locale) {
+	instance.SetDefault(locale)
 }
 
 // LoadBundle loads a translation file corresponding to a specified locale.
 // Not thread-safe; designed to be called during initialization.
-func LoadBundle(language discordgo.Locale, file string) error {
-	return instance.LoadBundle(language, file)
+func LoadBundle(locale discordgo.Locale, path string) error {
+	return instance.LoadBundle(locale, path)
 }
 
 // LoadBundleFS loads a translation file corresponding to a specified locale through fs.FS.
 // Not thread-safe; designed to be called during initialization.
-func LoadBundleFS(language discordgo.Locale, fs fs.FS, file string) error {
-	return instance.LoadBundleFS(language, fs, file)
+func LoadBundleFS(locale discordgo.Locale, fs fs.FS, path string) error {
+	return instance.LoadBundleFS(locale, fs, path)
+}
+
+// LoadBundleContent loads content corresponding to a specified locale.
+// Not thread-safe; designed to be called during initialization.
+func LoadBundleContent(locale discordgo.Locale, content map[string]any) error {
+	return instance.LoadBundleContent(locale, content)
 }
 
 // Get gets a translation corresponding to a locale and a key.
@@ -37,16 +45,14 @@ func LoadBundleFS(language discordgo.Locale, fs fs.FS, file string) error {
 // the default locale is used instead. If the situation persists with the fallback,
 // key is returned. If more than one translation is available for dedicated key,
 // it is picked randomly. Thread-safe.
-func Get(language discordgo.Locale, key string, values ...Vars) string {
+func Get(locale discordgo.Locale, key string, values ...Vars) string {
 	args := make(Vars)
 
 	for _, variables := range values {
-		for variable, value := range variables {
-			args[variable] = value
-		}
+		maps.Copy(args, variables)
 	}
 
-	return instance.Get(language, key, args)
+	return instance.Get(locale, key, args)
 }
 
 // GetDefault gets a translation corresponding to default locale and a key.
@@ -58,9 +64,7 @@ func GetDefault(key string, values ...Vars) string {
 	args := make(Vars)
 
 	for _, variables := range values {
-		for variable, value := range variables {
-			args[variable] = value
-		}
+		maps.Copy(args, variables)
 	}
 
 	return instance.GetDefault(key, args)
@@ -74,9 +78,7 @@ func GetLocalizations(key string, values ...Vars) *map[discordgo.Locale]string {
 	args := make(Vars)
 
 	for _, variables := range values {
-		for variable, value := range variables {
-			args[variable] = value
-		}
+		maps.Copy(args, variables)
 	}
 
 	return instance.GetLocalizations(key, args)

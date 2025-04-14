@@ -48,9 +48,24 @@ const (
 	`
 )
 
+//nolint:gochecknoglobals // Acceptable for a test.
 var (
-	//nolint:gochecknoglobals // Acceptable for a test.
 	translatorTest *translatorImpl
+	content1Map    = map[string]any{
+		"hi":     []string{"this is a {{ .Test }}"},
+		"with":   []string{"all"},
+		"the":    []string{"elements", "we"},
+		"can":    []string{"find"},
+		"in":     []string{"a", "json"},
+		"config": []string{"file", "! {{ .Author }}"},
+		"parse":  []string{"{{if $foo}}{{end}}"},
+	}
+	content2Map = map[string]any{
+		"this":        []string{"is a {{ .Test }}"},
+		"with.a.file": []string{"containing", "less", "variables"},
+		"bye":         []string{"see you"},
+		"parse2":      []string{"{{if $foo}}{{end}}"},
+	}
 )
 
 func setUp() {
@@ -132,6 +147,78 @@ func TestLoadBundle(t *testing.T) {
 
 	// Nominal case, reload a bundle linked to two locales
 	assert.NoError(t, translatorTest.LoadBundle(discordgo.EnglishGB, translatornominalCase1))
+	assert.Equal(t, 2, len(translatorTest.loadedBundles))
+	assert.Equal(t, 2, len(translatorTest.translations))
+	assert.Equal(t, 7, len(translatorTest.translations[discordgo.EnglishGB]))
+}
+
+func TestLoadBundleFS(t *testing.T) {
+	setUp()
+	defer tearDown()
+
+	dirFS := os.DirFS(".")
+
+	// Bad case, file does not exist
+	_, err := os.Stat(translatorFileDoesNotExistCase)
+	assert.Error(t, os.ErrNotExist, err)
+	assert.Error(t, translatorTest.LoadBundleFS(discordgo.French, dirFS, translatorFileDoesNotExistCase))
+	assert.Empty(t, translatorTest.translations)
+	assert.Empty(t, translatorTest.loadedBundles)
+
+	// Bad case, file is not well structured
+	assert.Error(t, translatorTest.LoadBundleFS(discordgo.French, dirFS, translatorFailedUnmarshallCase))
+	assert.Empty(t, translatorTest.translations)
+	assert.Empty(t, translatorTest.loadedBundles)
+
+	// Nominal case, load an existing and well structured bundle
+	assert.NoError(t, translatorTest.LoadBundleFS(discordgo.French, dirFS, translatornominalCase1))
+	assert.Equal(t, 1, len(translatorTest.loadedBundles))
+	assert.Equal(t, 1, len(translatorTest.translations))
+	assert.Equal(t, 7, len(translatorTest.translations[discordgo.French]))
+
+	// Nominal case, reload a bundle
+	assert.NoError(t, translatorTest.LoadBundleFS(discordgo.French, dirFS, translatornominalCase2))
+	assert.Equal(t, 2, len(translatorTest.loadedBundles))
+	assert.Equal(t, 1, len(translatorTest.translations))
+	assert.Equal(t, 4, len(translatorTest.translations[discordgo.French]))
+
+	// Nominal case, load a bundle already loaded but for another locale
+	assert.NoError(t, translatorTest.LoadBundleFS(discordgo.EnglishGB, dirFS, translatornominalCase2))
+	assert.Equal(t, 2, len(translatorTest.loadedBundles))
+	assert.Equal(t, 2, len(translatorTest.translations))
+	assert.Equal(t, 4, len(translatorTest.translations[discordgo.EnglishGB]))
+
+	// Nominal case, reload a bundle linked to two locales
+	assert.NoError(t, translatorTest.LoadBundleFS(discordgo.EnglishGB, dirFS, translatornominalCase1))
+	assert.Equal(t, 2, len(translatorTest.loadedBundles))
+	assert.Equal(t, 2, len(translatorTest.translations))
+	assert.Equal(t, 7, len(translatorTest.translations[discordgo.EnglishGB]))
+}
+
+func TestLoadBundleContent(t *testing.T) {
+	setUp()
+	defer tearDown()
+
+	// Nominal case, load an existing and well structured bundle
+	assert.NoError(t, translatorTest.LoadBundleContent(discordgo.French, content1Map))
+	assert.Equal(t, 1, len(translatorTest.loadedBundles))
+	assert.Equal(t, 1, len(translatorTest.translations))
+	assert.Equal(t, 7, len(translatorTest.translations[discordgo.French]))
+
+	// Nominal case, reload a bundle
+	assert.NoError(t, translatorTest.LoadBundleContent(discordgo.French, content2Map))
+	assert.Equal(t, 2, len(translatorTest.loadedBundles))
+	assert.Equal(t, 1, len(translatorTest.translations))
+	assert.Equal(t, 4, len(translatorTest.translations[discordgo.French]))
+
+	// Nominal case, load a bundle already loaded but for another locale
+	assert.NoError(t, translatorTest.LoadBundleContent(discordgo.EnglishGB, content2Map))
+	assert.Equal(t, 2, len(translatorTest.loadedBundles))
+	assert.Equal(t, 2, len(translatorTest.translations))
+	assert.Equal(t, 4, len(translatorTest.translations[discordgo.EnglishGB]))
+
+	// Nominal case, reload a bundle linked to two locales
+	assert.NoError(t, translatorTest.LoadBundleContent(discordgo.EnglishGB, content1Map))
 	assert.Equal(t, 2, len(translatorTest.loadedBundles))
 	assert.Equal(t, 2, len(translatorTest.translations))
 	assert.Equal(t, 7, len(translatorTest.translations[discordgo.EnglishGB]))
