@@ -35,10 +35,23 @@ Import the package into your project.
 import i18n "github.com/kaysoro/discordgo-i18n"
 ```
 
-Load bundles for locales to support.
+Load bundles for locales to support with a local filepath.
 
 ```go
 err := i18n.LoadBundle(discordgo.French, "path/to/your/file.json")
+```
+
+Or through fs.FS.
+
+```go
+//go:embed langs/*
+var langFS embed.FS
+err := i18n.LoadBundleFS(discordgo.Czech, langFS, "langs/fr-FR.json")
+```
+
+If you want to handle yourself i18n filesystem, provide the content directly.
+```go
+err := i18n.LoadBundleContent(discordgo.Danish, map[string]any{"my": "content"})
 ```
 
 The bundle format must respect the schema below; note [text/template](http://golang.org/pkg/text/template/) syntax is used to inject variables.  

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"math/rand"
 	"os"
 	"strings"
@@ -29,35 +30,60 @@ func newTranslator() *translatorImpl {
 	}
 }
 
-func (translator *translatorImpl) SetDefault(language discordgo.Locale) {
-	translator.defaultLocale = language
+func (translator *translatorImpl) SetDefault(locale discordgo.Locale) {
+	translator.defaultLocale = locale
 }
 
 func (translator *translatorImpl) LoadBundle(locale discordgo.Locale, path string) error {
-	loadedBundle, found := translator.loadedBundles[path]
+	cachePath := translator.buildCachePath(path, osSource)
+	loadedBundle, found := translator.loadedBundles[cachePath]
 	if !found {
 		buf, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}
 
-		var jsonContent map[string]interface{}
-		err = json.Unmarshal(buf, &jsonContent)
+		return translator.loadBundleBuf(locale, buf, cachePath)
+	}
+
+	log.Debug().
+		Msgf("Bundle '%s' loaded with '%s' content (already loaded for other locales)", locale, cachePath)
+	translator.translations[locale] = loadedBundle
+	return nil
+}
+
+func (translator *translatorImpl) LoadBundleFS(locale discordgo.Locale, fsys fs.FS, path string) error {
+	cachePath := translator.buildCachePath(path, fsSource)
+	loadedBundle, found := translator.loadedBundles[cachePath]
+	if !found {
+		buf, err := fs.ReadFile(fsys, path)
 		if err != nil {
 			return err
 		}
 
-		newBundle := translator.mapBundleStructure(jsonContent)
-
-		log.Debug().Msgf("Bundle '%s' loaded with '%s' content", locale, path)
-		translator.loadedBundles[path] = newBundle
-		translator.translations[locale] = newBundle
-	} else {
-		log.Debug().
-			Msgf("Bundle '%s' loaded with '%s' content (already loaded for other locales)", locale, path)
-		translator.translations[locale] = loadedBundle
+		return translator.loadBundleBuf(locale, buf, cachePath)
 	}
 
+	log.Debug().
+		Msgf("Bundle '%s' loaded with '%s' content (already loaded for other locales)", locale, cachePath)
+	translator.translations[locale] = loadedBundle
+	return nil
+}
+
+func (translator *translatorImpl) LoadBundleContent(locale discordgo.Locale, content map[string]any) error {
+	cachePath := translator.buildCachePath(fmt.Sprintf("%p", content), contentSource)
+	loadedBundle, found := translator.loadedBundles[cachePath]
+	if !found {
+		newBundle := translator.mapBundleStructure(content)
+		log.Debug().Msgf("Bundle '%s' loaded with '%s' content", locale, cachePath)
+		translator.loadedBundles[cachePath] = newBundle
+		translator.translations[locale] = newBundle
+		return nil
+	}
+
+	log.Debug().
+		Msgf("Bundle '%s' loaded with '%s' content (already loaded for other locales)", locale, cachePath)
+	translator.translations[locale] = loadedBundle
 	return nil
 }
 
@@ -126,19 +152,34 @@ func (translator *translatorImpl) GetLocalizations(key string, variables Vars) *
 	return &localizations
 }
 
-func (translator *translatorImpl) mapBundleStructure(jsonContent map[string]interface{}) bundle {
+func (translator *translatorImpl) loadBundleBuf(locale discordgo.Locale, buf []byte, cachePath string) error {
+	var jsonContent map[string]any
+	err := json.Unmarshal(buf, &jsonContent)
+	if err != nil {
+		return err
+	}
+
+	newBundle := translator.mapBundleStructure(jsonContent)
+
+	log.Debug().Msgf("Bundle '%s' loaded with '%s' content", locale, cachePath)
+	translator.loadedBundles[cachePath] = newBundle
+	translator.translations[locale] = newBundle
+	return nil
+}
+
+func (translator *translatorImpl) mapBundleStructure(jsonContent map[string]any) bundle {
 	bundle := make(map[string][]string)
 	for key, content := range jsonContent {
 		switch v := content.(type) {
 		case string:
 			bundle[key] = []string{v}
-		case []interface{}:
+		case []any:
 			values := make([]string, 0)
 			for _, value := range v {
 				values = append(values, fmt.Sprintf("%v", value))
 			}
 			bundle[key] = values
-		case map[string]interface{}:
+		case map[string]any:
 			subValues := translator.mapBundleStructure(v)
 			for subKey, subValue := range subValues {
 				bundle[fmt.Sprintf("%s%s%s", key, keyDelim, subKey)] = subValue
@@ -149,4 +190,8 @@ func (translator *translatorImpl) mapBundleStructure(jsonContent map[string]inte
 	}
 
 	return bundle
+}
+
+func (translator *translatorImpl) buildCachePath(path string, source source) string {
+	return fmt.Sprintf("%v:%v", source, path)
 }

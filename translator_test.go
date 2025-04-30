@@ -48,9 +48,24 @@ const (
 	`
 )
 
+//nolint:gochecknoglobals // Acceptable for a test.
 var (
-	//nolint:gochecknoglobals // Acceptable for a test.
 	translatorTest *translatorImpl
+	content1Map    = map[string]any{
+		"hi":     []string{"this is a {{ .Test }}"},
+		"with":   []string{"all"},
+		"the":    []string{"elements", "we"},
+		"can":    []string{"find"},
+		"in":     []string{"a", "json"},
+		"config": []string{"file", "! {{ .Author }}"},
+		"parse":  []string{"{{if $foo}}{{end}}"},
+	}
+	content2Map = map[string]any{
+		"this":        []string{"is a {{ .Test }}"},
+		"with.a.file": []string{"containing", "less", "variables"},
+		"bye":         []string{"see you"},
+		"parse2":      []string{"{{if $foo}}{{end}}"},
+	}
 )
 
 func setUp() {
@@ -137,6 +152,78 @@ func TestLoadBundle(t *testing.T) {
 	assert.Equal(t, 7, len(translatorTest.translations[discordgo.EnglishGB]))
 }
 
+func TestLoadBundleFS(t *testing.T) {
+	setUp()
+	defer tearDown()
+
+	dirFS := os.DirFS(".")
+
+	// Bad case, file does not exist
+	_, err := os.Stat(translatorFileDoesNotExistCase)
+	assert.Error(t, os.ErrNotExist, err)
+	assert.Error(t, translatorTest.LoadBundleFS(discordgo.French, dirFS, translatorFileDoesNotExistCase))
+	assert.Empty(t, translatorTest.translations)
+	assert.Empty(t, translatorTest.loadedBundles)
+
+	// Bad case, file is not well structured
+	assert.Error(t, translatorTest.LoadBundleFS(discordgo.French, dirFS, translatorFailedUnmarshallCase))
+	assert.Empty(t, translatorTest.translations)
+	assert.Empty(t, translatorTest.loadedBundles)
+
+	// Nominal case, load an existing and well structured bundle
+	assert.NoError(t, translatorTest.LoadBundleFS(discordgo.French, dirFS, translatornominalCase1))
+	assert.Equal(t, 1, len(translatorTest.loadedBundles))
+	assert.Equal(t, 1, len(translatorTest.translations))
+	assert.Equal(t, 7, len(translatorTest.translations[discordgo.French]))
+
+	// Nominal case, reload a bundle
+	assert.NoError(t, translatorTest.LoadBundleFS(discordgo.French, dirFS, translatornominalCase2))
+	assert.Equal(t, 2, len(translatorTest.loadedBundles))
+	assert.Equal(t, 1, len(translatorTest.translations))
+	assert.Equal(t, 4, len(translatorTest.translations[discordgo.French]))
+
+	// Nominal case, load a bundle already loaded but for another locale
+	assert.NoError(t, translatorTest.LoadBundleFS(discordgo.EnglishGB, dirFS, translatornominalCase2))
+	assert.Equal(t, 2, len(translatorTest.loadedBundles))
+	assert.Equal(t, 2, len(translatorTest.translations))
+	assert.Equal(t, 4, len(translatorTest.translations[discordgo.EnglishGB]))
+
+	// Nominal case, reload a bundle linked to two locales
+	assert.NoError(t, translatorTest.LoadBundleFS(discordgo.EnglishGB, dirFS, translatornominalCase1))
+	assert.Equal(t, 2, len(translatorTest.loadedBundles))
+	assert.Equal(t, 2, len(translatorTest.translations))
+	assert.Equal(t, 7, len(translatorTest.translations[discordgo.EnglishGB]))
+}
+
+func TestLoadBundleContent(t *testing.T) {
+	setUp()
+	defer tearDown()
+
+	// Nominal case, load an existing and well structured bundle
+	assert.NoError(t, translatorTest.LoadBundleContent(discordgo.French, content1Map))
+	assert.Equal(t, 1, len(translatorTest.loadedBundles))
+	assert.Equal(t, 1, len(translatorTest.translations))
+	assert.Equal(t, 7, len(translatorTest.translations[discordgo.French]))
+
+	// Nominal case, reload a bundle
+	assert.NoError(t, translatorTest.LoadBundleContent(discordgo.French, content2Map))
+	assert.Equal(t, 2, len(translatorTest.loadedBundles))
+	assert.Equal(t, 1, len(translatorTest.translations))
+	assert.Equal(t, 4, len(translatorTest.translations[discordgo.French]))
+
+	// Nominal case, load a bundle already loaded but for another locale
+	assert.NoError(t, translatorTest.LoadBundleContent(discordgo.EnglishGB, content2Map))
+	assert.Equal(t, 2, len(translatorTest.loadedBundles))
+	assert.Equal(t, 2, len(translatorTest.translations))
+	assert.Equal(t, 4, len(translatorTest.translations[discordgo.EnglishGB]))
+
+	// Nominal case, reload a bundle linked to two locales
+	assert.NoError(t, translatorTest.LoadBundleContent(discordgo.EnglishGB, content1Map))
+	assert.Equal(t, 2, len(translatorTest.loadedBundles))
+	assert.Equal(t, 2, len(translatorTest.translations))
+	assert.Equal(t, 7, len(translatorTest.translations[discordgo.EnglishGB]))
+}
+
 func TestGet(t *testing.T) {
 	setUp()
 	defer tearDown()
@@ -191,7 +278,7 @@ func TestMapBundleStructure(t *testing.T) {
 
 	tests := []struct {
 		Description    string
-		Input          map[string]interface{}
+		Input          map[string]any
 		ExpectedBundle bundle
 	}{
 		{
@@ -201,12 +288,12 @@ func TestMapBundleStructure(t *testing.T) {
 		},
 		{
 			Description:    "Empty Input",
-			Input:          make(map[string]interface{}),
+			Input:          make(map[string]any),
 			ExpectedBundle: make(bundle),
 		},
 		{
 			Description: "Simple string Input",
-			Input: map[string]interface{}{
+			Input: map[string]any{
 				"simple":       "translation",
 				"variabilized": "translation {{ .translation }}",
 			},
@@ -217,10 +304,10 @@ func TestMapBundleStructure(t *testing.T) {
 		},
 		{
 			Description: "Different types handled",
-			Input: map[string]interface{}{
+			Input: map[string]any{
 				"pi":                                  3.14,
 				"answer_to_ultimate_question_of_life": 42,
-				"some_prime_numbers":                  []interface{}{2, "3", 5.0, 7},
+				"some_prime_numbers":                  []any{2, "3", 5.0, 7},
 			},
 			ExpectedBundle: bundle{
 				"pi":                                  []string{"3.14"},
@@ -230,14 +317,14 @@ func TestMapBundleStructure(t *testing.T) {
 		},
 		{
 			Description: "Deep structure",
-			Input: map[string]interface{}{
-				"command": map[string]interface{}{
-					"salutation": map[string]interface{}{
+			Input: map[string]any{
+				"command": map[string]any{
+					"salutation": map[string]any{
 						"hi":  "Hello there!",
-						"bye": []interface{}{"Bye {{ .anyone }}!", "See u {{ .anyone }}"},
+						"bye": []any{"Bye {{ .anyone }}!", "See u {{ .anyone }}"},
 					},
-					"speak": map[string]interface{}{
-						"random": []interface{}{"love to talk", "how are u?", "u're so interesting"},
+					"speak": map[string]any{
+						"random": []any{"love to talk", "how are u?", "u're so interesting"},
 					},
 				},
 				"panic": "I've panicked!",

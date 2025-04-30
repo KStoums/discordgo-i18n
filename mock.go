@@ -1,6 +1,8 @@
 package discordgoi18n
 
 import (
+	"io/fs"
+
 	"github.com/bwmarrin/discordgo"
 	"github.com/rs/zerolog/log"
 )
@@ -24,6 +26,24 @@ func (mock *translatorMock) LoadBundle(locale discordgo.Locale, file string) err
 	}
 
 	log.Warn().Msgf("LoadBundle not mocked")
+	return nil
+}
+
+func (mock *translatorMock) LoadBundleFS(locale discordgo.Locale, fs fs.FS, file string) error {
+	if mock.LoadBundleFSFunc != nil {
+		return mock.LoadBundleFSFunc(locale, fs, file)
+	}
+
+	log.Warn().Msgf("LoadBundleFS not mocked")
+	return nil
+}
+
+func (mock *translatorMock) LoadBundleContent(locale discordgo.Locale, content map[string]any) error {
+	if mock.LoadBundleContentFunc != nil {
+		return mock.LoadBundleContentFunc(locale, content)
+	}
+
+	log.Warn().Msgf("LoadBundleContentFunc not mocked")
 	return nil
 }
 

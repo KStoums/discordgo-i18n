@@ -1,11 +1,11 @@
 module github.com/kaysoro/discordgo-i18n
 
-go 1.22
+go 1.24
 
 require (
 	github.com/bwmarrin/discordgo v0.28.1
-	github.com/rs/zerolog v1.33.0
-	github.com/stretchr/testify v1.9.0
+	github.com/rs/zerolog v1.34.0
+	github.com/stretchr/testify v1.10.0
 )
 
 require (
