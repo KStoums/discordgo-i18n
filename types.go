@@ -15,9 +15,11 @@ type translator interface {
 	LoadBundle(locale discordgo.Locale, path string) error
 	LoadBundleFS(locale discordgo.Locale, fs fs.FS, path string) error
 	LoadBundleContent(locale discordgo.Locale, content map[string]any) error
-	Get(locale discordgo.Locale, key string, values Vars) string
-	GetDefault(key string, values Vars) string
-	GetLocalizations(key string, variables Vars) *map[discordgo.Locale]string
+	Get(locale discordgo.Locale, key string, values Vars) (string, error)
+	GetArray(locale discordgo.Locale, key string, values Vars) ([]string, error)
+	GetDefault(key string, values Vars) (string, error)
+	GetDefaultArray(key string, values Vars) ([]string, error)
+	GetLocalizations(key string, variables Vars) (*map[discordgo.Locale]string, error)
 }
 
 type translatorImpl struct {
@@ -31,9 +33,11 @@ type translatorMock struct {
 	LoadBundleFunc        func(locale discordgo.Locale, path string) error
 	LoadBundleFSFunc      func(locale discordgo.Locale, fs fs.FS, path string) error
 	LoadBundleContentFunc func(locale discordgo.Locale, content map[string]any) error
-	GetFunc               func(locale discordgo.Locale, key string, values Vars) string
-	GetDefaultFunc        func(key string, values Vars) string
-	GetLocalizationsFunc  func(key string, variables Vars) *map[discordgo.Locale]string
+	GetFunc               func(locale discordgo.Locale, key string, values Vars) (string, error)
+	GetArrayFunc          func(locale discordgo.Locale, key string, values Vars) ([]string, error)
+	GetDefaultFunc        func(key string, values Vars) (string, error)
+	GetDefaultArrayFunc   func(key string, values Vars) ([]string, error)
+	GetLocalizationsFunc  func(key string, variables Vars) (*map[discordgo.Locale]string, error)
 }
 
 type bundle map[string][]string
