@@ -42,7 +42,7 @@ loggerAdapter := NewDiscordGoI18nLoggerAdapter(DiscordGoI18nLoggerAdapterDeps{Lo
 
 Initialize the i18n translator with your logger adapter
 ````go
-i18nTranslator := i18n.NewTranslator(loggerAdapter)
+i18n := i18n.NewTranslator(loggerAdapter)
 ````
 
 Load bundles for locales to support with a local filepath.
