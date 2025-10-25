@@ -141,10 +141,7 @@ func (translator *translatorImpl) GetArray(locale discordgo.Locale, key string, 
 		return []string{key}
 	}
 
-	fmt.Println("BUNDLE", bundles[key])
-
 	raws, found := bundles[key]
-	fmt.Println("RAWS LEN", len(raws))
 	if !found || len(raws) == 0 {
 		if locale != translator.defaultLocale {
 			translator.logger.Error().Err(fmt.Errorf("no label found for key '%s' in '%s'", key, locale))
@@ -175,7 +172,6 @@ func (translator *translatorImpl) GetArray(locale discordgo.Locale, key string, 
 		}
 	}
 
-	fmt.Println("FINAL RAWS", raws)
 	return raws
 }
 
