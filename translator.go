@@ -22,13 +22,17 @@ const (
 	executionPolicy = "missingkey=error"
 )
 
-func NewTranslator(logger logger.Logger, defaultLocale discordgo.Locale) Translator {
+func NewTranslator(logger logger.Logger) Translator {
 	return &translatorImpl{
 		defaultLocale: defaultLocale,
 		translations:  make(map[discordgo.Locale]bundle),
 		loadedBundles: make(map[string]bundle),
 		logger:        logger,
 	}
+}
+
+func (translator *translatorImpl) SetDefault(locale discordgo.Locale) {
+	translator.defaultLocale = locale
 }
 
 func (translator *translatorImpl) LoadBundle(locale discordgo.Locale, path string) error {
