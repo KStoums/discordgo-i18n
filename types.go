@@ -12,7 +12,7 @@ import (
 type Vars map[string]any
 
 type Translator interface {
-	SetDefault(locale discordgo.Locale)
+	//SetDefault(locale discordgo.Locale) // Defined in constructor
 	LoadBundle(locale discordgo.Locale, path string) error
 	LoadBundleFS(locale discordgo.Locale, fs fs.FS, path string) error
 	LoadBundleContent(locale discordgo.Locale, content map[string]any) error
