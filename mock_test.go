@@ -1,7 +1,6 @@
 package discordgoi18n
 
 import (
-	"errors"
 	"io/fs"
 	"testing"
 	"testing/fstest"
@@ -37,47 +36,47 @@ func TestMock(t *testing.T) {
 		return nil
 	}
 
-	mock.GetFunc = func(locale discordgo.Locale, key string, variables Vars) (string, error) {
+	mock.GetFunc = func(locale discordgo.Locale, key string, variables Vars) string {
 		if key == "fail" {
-			return "", errors.New("mock Get error")
+			return key
 		}
 		assert.Equal(t, discordgo.SpanishES, locale)
 		assert.Equal(t, "greeting", key)
-		return "Hola", nil
+		return "Hola"
 	}
 
-	mock.GetArrayFunc = func(locale discordgo.Locale, key string, variables Vars) ([]string, error) {
+	mock.GetArrayFunc = func(locale discordgo.Locale, key string, variables Vars) []string {
 		if key == "fail_array" {
-			return nil, errors.New("mock GetArray error")
+			return []string{key}
 		}
 		assert.Equal(t, discordgo.SpanishES, locale)
 		assert.Equal(t, "days", key)
-		return []string{"lunes", "martes"}, nil
+		return []string{"lunes", "martes"}
 	}
 
-	mock.GetDefaultFunc = func(key string, variables Vars) (string, error) {
+	mock.GetDefaultFunc = func(key string, variables Vars) string {
 		if key == "fail_default" {
-			return "", errors.New("mock GetDefault error")
+			return key
 		}
 		assert.Equal(t, "key", key)
-		return "default", nil
+		return "default"
 	}
 
-	mock.GetDefaultArrayFunc = func(key string, variables Vars) ([]string, error) {
+	mock.GetDefaultArrayFunc = func(key string, variables Vars) []string {
 		if key == "fail_default_array" {
-			return nil, errors.New("mock GetDefaultArray error")
+			return []string{key}
 		}
 		assert.Equal(t, "key_array", key)
-		return []string{"uno", "dos"}, nil
+		return []string{"uno", "dos"}
 	}
 
-	mock.GetLocalizationsFunc = func(key string, variables Vars) (*map[discordgo.Locale]string, error) {
+	mock.GetLocalizationsFunc = func(key string, variables Vars) *map[discordgo.Locale]string {
 		assert.Equal(t, "welcome", key)
 		m := map[discordgo.Locale]string{
 			discordgo.EnglishUS: "Hello",
 			discordgo.French:    "Bonjour",
 		}
-		return &m, nil
+		return &m
 	}
 
 	// TESTS ------------------
@@ -92,45 +91,35 @@ func TestMock(t *testing.T) {
 	assert.NoError(t, mock.LoadBundleContent(discordgo.Italian, map[string]any{"hi": "ciao"}))
 
 	// GET (success)
-	res, err := mock.Get(discordgo.SpanishES, "greeting", nil)
-	assert.NoError(t, err)
-	assert.Equal(t, "Hola", res)
+	assert.Equal(t, "Hola", mock.Get(discordgo.SpanishES, "greeting", nil))
 
 	// GET (error)
-	_, err = mock.Get(discordgo.SpanishES, "fail", nil)
-	assert.Error(t, err)
+	translation := mock.Get(discordgo.SpanishES, "fail", nil)
+	assert.Equal(t, "fail", translation)
 
 	// GET ARRAY (success)
-	arr, err := mock.GetArray(discordgo.SpanishES, "days", nil)
-	assert.NoError(t, err)
-	assert.Equal(t, []string{"lunes", "martes"}, arr)
+	assert.Equal(t, []string{"lunes", "martes"}, mock.GetArray(discordgo.SpanishES, "days", nil))
 
 	// GET ARRAY (error)
-	_, err = mock.GetArray(discordgo.SpanishES, "fail_array", nil)
-	assert.Error(t, err)
+	translations := mock.GetArray(discordgo.SpanishES, "fail_array", nil)
+	assert.Equal(t, []string{"fail_array"}, translations)
 
 	// GET DEFAULT (success)
-	def, err := mock.GetDefault("key", nil)
-	assert.NoError(t, err)
-	assert.Equal(t, "default", def)
+	assert.Equal(t, "default", mock.GetDefault("key", nil))
 
 	// GET DEFAULT (error)
-	_, err = mock.GetDefault("fail_default", nil)
-	assert.Error(t, err)
+	translation = mock.GetDefault("fail_default", nil)
+	assert.Equal(t, "fail_default", translation)
 
 	// GET DEFAULT ARRAY (success)
-	defArr, err := mock.GetDefaultArray("key_array", nil)
-	assert.NoError(t, err)
-	assert.Equal(t, []string{"uno", "dos"}, defArr)
+	assert.Equal(t, []string{"uno", "dos"}, mock.GetDefaultArray("key_array", nil))
 
 	// GET DEFAULT ARRAY (error)
-	_, err = mock.GetDefaultArray("fail_default_array", nil)
-	assert.Error(t, err)
+	translations = mock.GetDefaultArray("fail_default_array", nil)
+	assert.Equal(t, []string{"fail_default_array"}, translations)
 
 	// GET LOCALIZATIONS
-	loc, err := mock.GetLocalizations("welcome", nil)
-	assert.NoError(t, err)
-	assert.NotNil(t, loc)
-	assert.Contains(t, *loc, discordgo.EnglishUS)
-	assert.Contains(t, *loc, discordgo.French)
+	assert.NotNil(t, mock.GetLocalizations("welcome", nil))
+	assert.Contains(t, *mock.GetLocalizations("welcome", nil), discordgo.EnglishUS)
+	assert.Contains(t, *mock.GetLocalizations("welcome", nil), discordgo.French)
 }

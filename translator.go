@@ -3,7 +3,6 @@ package discordgoi18n
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/fs"
 	"math/rand"
@@ -12,7 +11,7 @@ import (
 	"text/template"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/rs/zerolog/log"
+	"github.com/kstoums/discordgo-i18n/logger"
 )
 
 const (
@@ -23,11 +22,12 @@ const (
 	executionPolicy = "missingkey=error"
 )
 
-func newTranslator() *translatorImpl {
+func NewTranslator(logger logger.Logger) Translator {
 	return &translatorImpl{
 		defaultLocale: defaultLocale,
 		translations:  make(map[discordgo.Locale]bundle),
 		loadedBundles: make(map[string]bundle),
+		logger:        logger,
 	}
 }
 
@@ -81,27 +81,29 @@ func (translator *translatorImpl) LoadBundleContent(locale discordgo.Locale, con
 	return nil
 }
 
-func (translator *translatorImpl) Get(locale discordgo.Locale, key string, variables Vars) (string, error) {
+func (translator *translatorImpl) Get(locale discordgo.Locale, key string, variables Vars) string {
 	bundles, found := translator.translations[locale]
 	if !found {
 		if locale != translator.defaultLocale {
-			log.Warn().Msgf("Bundle '%s' is not loaded, trying to translate key '%s' in '%s'",
-				locale, key, translator.defaultLocale)
-			return "", errors.New(fmt.Sprintf("Bundle '%s' is not loaded, trying to translate key '%s' in '%s'",
+			translator.logger.Error().Err(fmt.Errorf("bundle '%s' is not loaded, trying to translate key '%s' in '%s'",
 				locale, key, translator.defaultLocale))
+			return key
 		}
 
-		return "", errors.New(fmt.Sprintf("Bundle '%s' is not loaded, cannot translate '%s', key returned", locale, key))
+		translator.logger.Error().Err(fmt.Errorf("bundle '%s' is not loaded, cannot translate '%s', key returned", locale, key))
+		return key
 	}
 
 	raws, found := bundles[key]
 	if !found || len(raws) == 0 {
 		if locale != translator.defaultLocale {
-			return "", errors.New(fmt.Sprintf("No label found for key '%s' in '%s', trying to translate it in %s",
+			translator.logger.Error().Err(fmt.Errorf("no label found for key '%s' in '%s', trying to translate it in %s",
 				key, locale, translator.defaultLocale))
+			return key
 		}
 
-		return "", errors.New(fmt.Sprintf("No label found for key '%s' in '%s'", key, locale))
+		translator.logger.Error().Err(fmt.Errorf("no label found for key '%s' in '%s'", key, locale))
+		return key
 	}
 
 	//nolint:gosec // No need to have a strong random number generator here.
@@ -110,40 +112,47 @@ func (translator *translatorImpl) Get(locale discordgo.Locale, key string, varia
 	if variables != nil && strings.Contains(raw, leftDelim) {
 		t, err := template.New("").Delims(leftDelim, rightDelim).Option(executionPolicy).Parse(raw)
 		if err != nil {
-			return "", errors.New(fmt.Sprintf("Cannot parse raw corresponding to key '%s' in '%s'", locale, key))
+			translator.logger.Error().Err(err).Msgf("Cannot parse raw corresponding to key '%s' in '%s'", locale, key)
+			return key
 		}
 
 		var buf bytes.Buffer
 		err = t.Execute(&buf, variables)
 		if err != nil {
-			return "", errors.New(fmt.Sprintf("Cannot inject variables in raw corresponding to key '%s' in '%s', raw returned", locale, key))
+			translator.logger.Error().Err(err).Msgf("Cannot inject variables in raw corresponding to key '%s' in '%s', raw returned", locale, key)
+			return key
 		}
-		return buf.String(), nil
+		return buf.String()
 	}
 
-	return raw, nil
+	return raw
 }
 
-func (translator *translatorImpl) GetArray(locale discordgo.Locale, key string, variables Vars) ([]string, error) {
+func (translator *translatorImpl) GetArray(locale discordgo.Locale, key string, variables Vars) []string {
 	bundles, found := translator.translations[locale]
 	if !found {
 		if locale != translator.defaultLocale {
-			log.Warn().Msgf("Bundle '%s' is not loaded, trying to translate key '%s' in '%s'",
-				locale, key, translator.defaultLocale)
-			return []string{}, errors.New(fmt.Sprintf("Bundle '%s' is not loaded, trying to translate key '%s' in '%s'",
+			translator.logger.Error().Err(fmt.Errorf("bundle '%s' is not loaded, trying to translate key '%s' in '%s'",
 				locale, key, translator.defaultLocale))
+			return []string{key}
 		}
 
-		return []string{}, errors.New(fmt.Sprintf("Bundle '%s' is not loaded, cannot translate '%s', key returned", locale, key))
+		translator.logger.Error().Err(fmt.Errorf("bundle '%s' is not loaded, cannot translate '%s', key returned", locale, key))
+		return []string{key}
 	}
 
+	fmt.Println("BUNDLE", bundles[key])
+
 	raws, found := bundles[key]
+	fmt.Println("RAWS LEN", len(raws))
 	if !found || len(raws) == 0 {
 		if locale != translator.defaultLocale {
-			return []string{}, errors.New(fmt.Sprintf("No label found for key '%s' in '%s'", key, locale))
+			translator.logger.Error().Err(fmt.Errorf("no label found for key '%s' in '%s'", key, locale))
+			return []string{key}
 		}
 
-		return []string{}, errors.New(fmt.Sprintf("No label found for key '%s' in '%s'", key, locale))
+		translator.logger.Error().Err(fmt.Errorf("no label found for key '%s' in '%s'", key, locale))
+		return []string{key}
 	}
 
 	//nolint:gosec // No need to have a strong random number generator here.
@@ -151,42 +160,41 @@ func (translator *translatorImpl) GetArray(locale discordgo.Locale, key string, 
 		if variables != nil && strings.Contains(raw, leftDelim) {
 			t, err := template.New("").Delims(leftDelim, rightDelim).Option(executionPolicy).Parse(raw)
 			if err != nil {
-				return []string{}, err
+				translator.logger.Error().Err(err).Msgf("Cannot parse raw corresponding to key '%s' in '%s'", key, locale)
+				return []string{key}
 			}
 
 			var buf bytes.Buffer
 			err = t.Execute(&buf, variables)
 			if err != nil {
-				return []string{}, err
+				translator.logger.Error().Err(err).Msgf("Cannot inject variables in raw corresponding to key '%s' in '%s'", key, locale)
+				return []string{key}
 			}
 
 			raws[i] = buf.String()
 		}
 	}
 
-	return raws, nil
+	fmt.Println("FINAL RAWS", raws)
+	return raws
 }
 
-func (translator *translatorImpl) GetDefault(key string, variables Vars) (string, error) {
+func (translator *translatorImpl) GetDefault(key string, variables Vars) string {
 	return translator.Get(translator.defaultLocale, key, variables)
 }
 
-func (translator *translatorImpl) GetDefaultArray(key string, variables Vars) ([]string, error) {
+func (translator *translatorImpl) GetDefaultArray(key string, variables Vars) []string {
 	return translator.GetArray(translator.defaultLocale, key, variables)
 }
 
-func (translator *translatorImpl) GetLocalizations(key string, variables Vars) (*map[discordgo.Locale]string, error) {
+func (translator *translatorImpl) GetLocalizations(key string, variables Vars) *map[discordgo.Locale]string {
 	localizations := make(map[discordgo.Locale]string)
 
 	for locale := range translator.translations {
-		var err error
-		localizations[locale], err = translator.Get(locale, key, variables)
-		if err != nil {
-			return nil, err
-		}
+		localizations[locale] = translator.Get(locale, key, variables)
 	}
 
-	return &localizations, nil
+	return &localizations
 }
 
 func (translator *translatorImpl) loadBundleBuf(locale discordgo.Locale, buf []byte, cachePath string) error {
@@ -198,7 +206,7 @@ func (translator *translatorImpl) loadBundleBuf(locale discordgo.Locale, buf []b
 
 	newBundle := translator.mapBundleStructure(jsonContent)
 
-	log.Debug().Msgf("Bundle '%s' loaded with '%s' content", locale, cachePath)
+	translator.logger.Debug().Msgf("Bundle '%s' loaded with '%s' content", locale, cachePath)
 	translator.loadedBundles[cachePath] = newBundle
 	translator.translations[locale] = newBundle
 	return nil

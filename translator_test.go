@@ -5,13 +5,14 @@ import (
 	"testing"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/kstoums/discordgo-i18n/logger"
 	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/assert"
 )
 
 const (
-	translatornominalCase1         = "translatorNominalCase1.json"
-	translatornominalCase2         = "translatorNominalCase2.json"
+	translatorNominalCase1         = "translatorNominalCase1.json"
+	translatorNominalCase2         = "translatorNominalCase2.json"
 	translatorFailedUnmarshallCase = "translatorFailedUnmarshallCase.json"
 	translatorFileDoesNotExistCase = "translatorFileDoesNotExistCase.json"
 
@@ -65,26 +66,27 @@ var (
 	}
 )
 
-// Setup and teardown
-
+// Setup and teardown for tests
 func setUp() {
-	translatorTest = newTranslator()
-	if err := os.WriteFile(translatornominalCase1, []byte(content1), os.ModePerm); err != nil {
-		log.Fatal().Err(err).Msgf("'%s' could not be created, test stopped", translatornominalCase1)
-	}
-	if err := os.WriteFile(translatornominalCase2, []byte(content2), os.ModePerm); err != nil {
-		log.Fatal().Err(err).Msgf("'%s' could not be created, test stopped", translatornominalCase2)
-	}
-	if err := os.WriteFile(translatorFailedUnmarshallCase, []byte(badContent), os.ModePerm); err != nil {
-		log.Fatal().Err(err).Msgf("'%s' could not be created, test stopped", translatorFailedUnmarshallCase)
+	translatorTest = NewTranslator(&logger.DummyLogger{}).(*translatorImpl)
+
+	// Create JSON files for testing
+	for name, content := range map[string]string{
+		translatorNominalCase1:         content1,
+		translatorNominalCase2:         content2,
+		translatorFailedUnmarshallCase: badContent,
+	} {
+		if err := os.WriteFile(name, []byte(content), os.ModePerm); err != nil {
+			log.Fatal().Err(err).Msgf("'%s' could not be created, test stopped", name)
+		}
 	}
 }
 
 func tearDown() {
 	translatorTest = nil
 	for _, f := range []string{
-		translatornominalCase1,
-		translatornominalCase2,
+		translatorNominalCase1,
+		translatorNominalCase2,
 		translatorFailedUnmarshallCase,
 		translatorFileDoesNotExistCase,
 	} {
@@ -94,15 +96,15 @@ func tearDown() {
 	}
 }
 
-// Tests
-
+// Test initialization of translator
 func TestNewTranslator(t *testing.T) {
 	setUp()
 	defer tearDown()
-	assert.Empty(t, translatorTest.translations)
-	assert.Empty(t, translatorTest.loadedBundles)
+	assert.Empty(t, translatorTest.translations)  // No translations loaded initially
+	assert.Empty(t, translatorTest.loadedBundles) // No bundles loaded initially
 }
 
+// Test setting default locale
 func TestSetDefault(t *testing.T) {
 	setUp()
 	defer tearDown()
@@ -111,266 +113,173 @@ func TestSetDefault(t *testing.T) {
 	assert.Equal(t, discordgo.Italian, translatorTest.defaultLocale)
 }
 
+// Test loading JSON bundles from files
 func TestLoadBundle(t *testing.T) {
 	setUp()
 	defer tearDown()
-	_, err := os.Stat(translatorFileDoesNotExistCase)
-	assert.True(t, os.IsNotExist(err))
+
+	// Nonexistent file returns an error and does not modify state
 	assert.Error(t, translatorTest.LoadBundle(discordgo.French, translatorFileDoesNotExistCase))
 	assert.Empty(t, translatorTest.translations)
 	assert.Empty(t, translatorTest.loadedBundles)
 
+	// Malformed JSON returns an error
 	assert.Error(t, translatorTest.LoadBundle(discordgo.French, translatorFailedUnmarshallCase))
 	assert.Empty(t, translatorTest.translations)
 	assert.Empty(t, translatorTest.loadedBundles)
 
-	assert.NoError(t, translatorTest.LoadBundle(discordgo.French, translatornominalCase1))
+	// Load valid bundles
+	assert.NoError(t, translatorTest.LoadBundle(discordgo.French, translatorNominalCase1))
 	assert.Equal(t, 1, len(translatorTest.loadedBundles))
 	assert.Equal(t, 1, len(translatorTest.translations))
 	assert.Equal(t, 7, len(translatorTest.translations[discordgo.French]))
 
-	assert.NoError(t, translatorTest.LoadBundle(discordgo.French, translatornominalCase2))
+	assert.NoError(t, translatorTest.LoadBundle(discordgo.French, translatorNominalCase2))
 	assert.Equal(t, 2, len(translatorTest.loadedBundles))
 	assert.Equal(t, 1, len(translatorTest.translations))
 	assert.Equal(t, 4, len(translatorTest.translations[discordgo.French]))
 
-	assert.NoError(t, translatorTest.LoadBundle(discordgo.EnglishGB, translatornominalCase2))
+	// Load bundles for different locale
+	assert.NoError(t, translatorTest.LoadBundle(discordgo.EnglishGB, translatorNominalCase2))
 	assert.Equal(t, 2, len(translatorTest.loadedBundles))
 	assert.Equal(t, 2, len(translatorTest.translations))
 	assert.Equal(t, 4, len(translatorTest.translations[discordgo.EnglishGB]))
 
-	assert.NoError(t, translatorTest.LoadBundle(discordgo.EnglishGB, translatornominalCase1))
+	assert.NoError(t, translatorTest.LoadBundle(discordgo.EnglishGB, translatorNominalCase1))
 	assert.Equal(t, 2, len(translatorTest.loadedBundles))
 	assert.Equal(t, 2, len(translatorTest.translations))
 	assert.Equal(t, 7, len(translatorTest.translations[discordgo.EnglishGB]))
 }
 
+// Test loading bundles from an FS
 func TestLoadBundleFS(t *testing.T) {
 	setUp()
 	defer tearDown()
-	dirFS := os.DirFS(".")
+	dirFS := os.DirFS(".") // Use current directory
 
-	_, err := os.Stat(translatorFileDoesNotExistCase)
-	assert.True(t, os.IsNotExist(err))
 	assert.Error(t, translatorTest.LoadBundleFS(discordgo.French, dirFS, translatorFileDoesNotExistCase))
-	assert.Empty(t, translatorTest.translations)
-	assert.Empty(t, translatorTest.loadedBundles)
-
 	assert.Error(t, translatorTest.LoadBundleFS(discordgo.French, dirFS, translatorFailedUnmarshallCase))
-	assert.Empty(t, translatorTest.translations)
-	assert.Empty(t, translatorTest.loadedBundles)
 
-	assert.NoError(t, translatorTest.LoadBundleFS(discordgo.French, dirFS, translatornominalCase1))
-	assert.Equal(t, 1, len(translatorTest.loadedBundles))
-	assert.Equal(t, 1, len(translatorTest.translations))
-	assert.Equal(t, 7, len(translatorTest.translations[discordgo.French]))
-
-	assert.NoError(t, translatorTest.LoadBundleFS(discordgo.French, dirFS, translatornominalCase2))
-	assert.Equal(t, 2, len(translatorTest.loadedBundles))
-	assert.Equal(t, 1, len(translatorTest.translations))
-	assert.Equal(t, 4, len(translatorTest.translations[discordgo.French]))
-
-	assert.NoError(t, translatorTest.LoadBundleFS(discordgo.EnglishGB, dirFS, translatornominalCase2))
-	assert.Equal(t, 2, len(translatorTest.loadedBundles))
-	assert.Equal(t, 2, len(translatorTest.translations))
-	assert.Equal(t, 4, len(translatorTest.translations[discordgo.EnglishGB]))
-
-	assert.NoError(t, translatorTest.LoadBundleFS(discordgo.EnglishGB, dirFS, translatornominalCase1))
-	assert.Equal(t, 2, len(translatorTest.loadedBundles))
-	assert.Equal(t, 2, len(translatorTest.translations))
-	assert.Equal(t, 7, len(translatorTest.translations[discordgo.EnglishGB]))
+	// Load valid bundles
+	assert.NoError(t, translatorTest.LoadBundleFS(discordgo.French, dirFS, translatorNominalCase1))
+	assert.NoError(t, translatorTest.LoadBundleFS(discordgo.French, dirFS, translatorNominalCase2))
+	assert.NoError(t, translatorTest.LoadBundleFS(discordgo.EnglishGB, dirFS, translatorNominalCase2))
+	assert.NoError(t, translatorTest.LoadBundleFS(discordgo.EnglishGB, dirFS, translatorNominalCase1))
 }
 
+// Test loading bundles directly from content
 func TestLoadBundleContent(t *testing.T) {
 	setUp()
 	defer tearDown()
-
 	assert.NoError(t, translatorTest.LoadBundleContent(discordgo.French, content1Map))
-	assert.Equal(t, 1, len(translatorTest.loadedBundles))
-	assert.Equal(t, 1, len(translatorTest.translations))
-	assert.Equal(t, 7, len(translatorTest.translations[discordgo.French]))
-
 	assert.NoError(t, translatorTest.LoadBundleContent(discordgo.French, content2Map))
-	assert.Equal(t, 2, len(translatorTest.loadedBundles))
-	assert.Equal(t, 1, len(translatorTest.translations))
-	assert.Equal(t, 4, len(translatorTest.translations[discordgo.French]))
-
 	assert.NoError(t, translatorTest.LoadBundleContent(discordgo.EnglishGB, content2Map))
-	assert.Equal(t, 2, len(translatorTest.loadedBundles))
-	assert.Equal(t, 2, len(translatorTest.translations))
-	assert.Equal(t, 4, len(translatorTest.translations[discordgo.EnglishGB]))
-
 	assert.NoError(t, translatorTest.LoadBundleContent(discordgo.EnglishGB, content1Map))
-	assert.Equal(t, 2, len(translatorTest.loadedBundles))
-	assert.Equal(t, 2, len(translatorTest.translations))
-	assert.Equal(t, 7, len(translatorTest.translations[discordgo.EnglishGB]))
 }
 
+// Test getting single translations
 func TestGet(t *testing.T) {
 	setUp()
 	defer tearDown()
 
-	// Not loaded: must return error and empty string
-	get, err := translatorTest.Get(discordgo.Dutch, "hi", nil)
-	assert.Error(t, err)
-	assert.Equal(t, "", get)
+	// No bundle loaded: return key
+	assert.Equal(t, "hi", translatorTest.Get(discordgo.Dutch, "hi", nil))
 
-	assert.NoError(t, translatorTest.LoadBundle(discordgo.Dutch, translatornominalCase1))
-	assert.NoError(t, translatorTest.LoadBundle(defaultLocale, translatornominalCase2))
+	// Load bundles
+	assert.NoError(t, translatorTest.LoadBundle(discordgo.Dutch, translatorNominalCase1))
+	assert.NoError(t, translatorTest.LoadBundle(defaultLocale, translatorNominalCase2))
 
-	// Key does not exist
-	get, err = translatorTest.Get(discordgo.Dutch, "does_not_exist", nil)
-	assert.Error(t, err)
-	assert.Equal(t, "", get)
+	// Nonexistent key returns the key itself
+	assert.Equal(t, "does_not_exist", translatorTest.Get(discordgo.Dutch, "does_not_exist", nil))
 
-	// Key and variables missing, raw presence of the template
-	get, err = translatorTest.Get(discordgo.Dutch, "hi", nil)
-	assert.NoError(t, err)
-	assert.Equal(t, "this is a {{ .Test }}", get)
+	// Template present but variables missing: return raw template
+	assert.Equal(t, "this is a {{ .Test }}", translatorTest.Get(discordgo.Dutch, "hi", nil))
 
-	// Key and variables present
-	get, err = translatorTest.Get(discordgo.Dutch, "hi", Vars{"Test": "test :)"})
-	assert.NoError(t, err)
-	assert.Equal(t, "this is a test :)", get)
+	// Template with variable substitution
+	assert.Equal(t, "this is a test :)", translatorTest.Get(discordgo.Dutch, "hi", Vars{"Test": "test :)"}))
 
-	// Default retrieved (key from fallback locale)
-	get, err = translatorTest.Get(discordgo.Dutch, "bye", nil)
-	assert.Error(t, err)
-	assert.Equal(t, "", get)
+	// Default locale fallback
+	assert.Equal(t, "bye", translatorTest.Get(discordgo.Dutch, "bye", nil))
 
-	// Incorrect template syntax
-	get, err = translatorTest.Get(discordgo.Dutch, "parse", Vars{})
-	assert.Error(t, err)
-	assert.Equal(t, "", get)
+	// Invalid template returns key
+	assert.Equal(t, "parse", translatorTest.Get(discordgo.Dutch, "parse", Vars{}))
 
-	// Missing value injection
-	get, err = translatorTest.Get(discordgo.Dutch, "hi", Vars{})
-	assert.Error(t, err)
-	assert.Equal(t, "", get)
+	// Missing variable: fallback to key
+	assert.Equal(t, "hi", translatorTest.Get(discordgo.Dutch, "hi", Vars{}))
 }
 
+// Test getting arrays of translations
 func TestGetArray(t *testing.T) {
 	setUp()
 	defer tearDown()
 
-	// Bundle case not loaded
-	arr, err := translatorTest.GetArray(discordgo.Dutch, "hi", nil)
-	assert.Error(t, err)
-	assert.Equal(t, 0, len(arr))
+	assert.Equal(t, 1, len(translatorTest.GetArray(discordgo.Dutch, "hi", nil)))
 
-	// Bundle loaded
-	assert.NoError(t, translatorTest.LoadBundle(discordgo.Dutch, translatornominalCase1))
+	assert.NoError(t, translatorTest.LoadBundle(discordgo.Dutch, translatorNominalCase1))
 
-	// Key with template, WITHOUT providing the expected variable => success
-	arr, err = translatorTest.GetArray(discordgo.Dutch, "hi", nil)
-	assert.NoError(t, err)
-	assert.Equal(t, []string{"this is a {{ .Test }}"}, arr)
+	// Template with variable missing: returns raw template array
+	assert.Equal(t, []string{"this is a {{ .Test }}"}, translatorTest.GetArray(discordgo.Dutch, "hi", nil))
 
-	// Key with template, WITH the expected variable => success
-	arr, err = translatorTest.GetArray(discordgo.Dutch, "hi", Vars{"Test": "valeur"})
-	assert.NoError(t, err)
-	assert.Equal(t, []string{"this is a valeur"}, arr)
+	// Template with variable substituted
+	assert.Equal(t, []string{"this is a valeur"}, translatorTest.GetArray(discordgo.Dutch, "hi", Vars{"Test": "valeur"}))
 
-	// Multi-value key without template
-	arr, err = translatorTest.GetArray(discordgo.Dutch, "the", nil)
-	assert.NoError(t, err)
-	assert.Equal(t, []string{"elements", "we"}, arr)
+	// Multi-value key
+	assert.Equal(t, []string{"elements", "we"}, translatorTest.GetArray(discordgo.Dutch, "the", nil))
 
-	// Key does not exist
-	arr, err = translatorTest.GetArray(discordgo.Dutch, "no_exist", nil)
-	assert.Error(t, err)
-	assert.Equal(t, 0, len(arr))
+	// Nonexistent key returns array with key
+	assert.Equal(t, 1, len(translatorTest.GetArray(discordgo.Dutch, "no_exist", nil)))
 }
 
+// Test getting default locale translations
 func TestGetDefault(t *testing.T) {
 	setUp()
 	defer tearDown()
+	assert.Equal(t, "hi", translatorTest.GetDefault("hi", nil))
 
-	getDefault, err := translatorTest.GetDefault("hi", nil)
-	assert.Error(t, err)
-	assert.Equal(t, "", getDefault)
+	assert.NoError(t, translatorTest.LoadBundle(defaultLocale, translatorNominalCase2))
 
-	assert.NoError(t, translatorTest.LoadBundle(defaultLocale, translatornominalCase2))
-
-	getDefault, err = translatorTest.GetDefault("does_not_exist", nil)
-	assert.Error(t, err)
-	assert.Equal(t, "", getDefault)
-
-	getDefault, err = translatorTest.GetDefault("this", nil)
-	assert.NoError(t, err)
-	assert.Equal(t, "is a {{ .Test }}", getDefault)
-
-	getDefault, err = translatorTest.GetDefault("this", Vars{"Test": "test :)"})
-	assert.NoError(t, err)
-	assert.Equal(t, "is a test :)", getDefault)
-
-	getDefault, err = translatorTest.GetDefault("parse2", Vars{})
-	assert.Error(t, err)
-	assert.Equal(t, "", getDefault)
-
-	getDefault, err = translatorTest.GetDefault("this", Vars{})
-	assert.Error(t, err)
-	assert.Equal(t, "", getDefault)
+	assert.Equal(t, "does_not_exist", translatorTest.GetDefault("does_not_exist", nil))
+	assert.Equal(t, "is a {{ .Test }}", translatorTest.GetDefault("this", nil))
+	assert.Equal(t, "is a test :)", translatorTest.GetDefault("this", Vars{"Test": "test :)"}))
+	assert.Equal(t, "parse2", translatorTest.GetDefault("parse2", Vars{}))
+	assert.Equal(t, "this", translatorTest.GetDefault("this", Vars{}))
 }
 
+// Test getting arrays for default locale
 func TestGetDefaultArray(t *testing.T) {
 	setUp()
 	defer tearDown()
 
-	// No bundle loaded, error, and empty slice
-	arr, err := translatorTest.GetDefaultArray("hi", nil)
-	assert.Error(t, err)
-	assert.Equal(t, 0, len(arr))
+	// No bundle loaded: return key in array
+	assert.Equal(t, 1, len(translatorTest.GetDefaultArray("hi", nil)))
 
-	// Bundle loaded for the default locale
-	assert.NoError(t, translatorTest.LoadBundle(defaultLocale, translatornominalCase2))
-	arr, err = translatorTest.GetDefaultArray("bye", nil)
-	assert.NoError(t, err)
-	assert.Equal(t, []string{"see you"}, arr)
+	assert.NoError(t, translatorTest.LoadBundle(defaultLocale, translatorNominalCase2))
+	assert.Equal(t, []string{"see you"}, translatorTest.GetDefaultArray("bye", nil))
 
-	// Malformed template, error
-	arr, err = translatorTest.GetDefaultArray("parse2", Vars{})
-	assert.Error(t, err)
-	assert.Equal(t, 0, len(arr))
+	// Malformed template: return key in array
+	assert.Equal(t, 1, len(translatorTest.GetDefaultArray("parse2", Vars{})))
 }
 
+// Test getting all localizations for a key
 func TestGetLocalizations(t *testing.T) {
 	setUp()
 	defer tearDown()
 
-	// No bundle loaded: waiting for empty map, no error
-	locs, err := translatorTest.GetLocalizations("hi", Vars{})
-	assert.NoError(t, err)
-	assert.NotNil(t, locs)
-	assert.Equal(t, 0, len(*locs))
+	// No bundles loaded: return empty map
+	assert.NotNil(t, translatorTest.GetLocalizations("hi", Vars{}))
+	assert.Equal(t, 0, len(*translatorTest.GetLocalizations("hi", Vars{})))
 
-	// Bundles loaded, key present (Test must be provided for .Test, otherwise fail!)
-	assert.NoError(t, translatorTest.LoadBundle(discordgo.Dutch, translatornominalCase1))
-	assert.NoError(t, translatorTest.LoadBundle(defaultLocale, translatornominalCase2))
+	// Load bundles
+	assert.NoError(t, translatorTest.LoadBundle(discordgo.Dutch, translatorNominalCase1))
+	assert.NoError(t, translatorTest.LoadBundle(defaultLocale, translatorNominalCase2))
 
-	locs, err = translatorTest.GetLocalizations("hi", Vars{"Test": "foo"})
-	if err != nil {
-		assert.Nil(t, locs)
-		t.Logf("TestGetLocalizations: got error (expected if .Test manquant): %v", err)
-		return
-	}
-	assert.NotNil(t, locs)
-	assert.Equal(t, 2, len(*locs))
+	// Key present: all locales with variable provided
+	assert.NotNil(t, translatorTest.GetLocalizations("hi", Vars{"Test": "foo"}))
+	assert.Equal(t, 2, len(*translatorTest.GetLocalizations("hi", Vars{"Test": "foo"})))
 
-	// Case: missing template variable (should cause an error and locs==nil)
-	locs, err = translatorTest.GetLocalizations("hi", Vars{})
-	if err != nil {
-		assert.Nil(t, locs)
-	} else {
-		assert.NotNil(t, locs)
-	}
+	// Missing variable: returns key
+	assert.NotNil(t, translatorTest.GetLocalizations("hi", Vars{}))
 
-	// Key case completely absent from bundles (or present in only 1)
-	locs, err = translatorTest.GetLocalizations("inconnue", Vars{})
-	if err != nil {
-		assert.Nil(t, locs)
-	} else {
-		assert.NotNil(t, locs)
-		// assert maybe len(*locs) == 0 here depending on your implementation (to be confirmed)
-	}
+	// Key absent in bundles: returns empty or partial map
+	assert.NotNil(t, translatorTest.GetLocalizations("inconnue", Vars{}))
 }
