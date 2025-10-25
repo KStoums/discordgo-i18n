@@ -9,7 +9,7 @@ discordgo-i18n is a simple and lightweight Go package that helps you translate G
 - Built to ease usage of [bwmarrin/discordgo](https://github.com/bwmarrin/discordgo)
 - Less verbose than [go-i18n](https://github.com/nicksnyder/go-i18n)
 - Supports multiple strings per key to make your bot "more alive"
-- Supports strings with named variables using [text/template](http://golang.org/pkg/text/template/) syntax
+- Supports strings and arrays with named variables
 - Supports message files of JSON format
 
 # Getting started
@@ -32,8 +32,18 @@ go get github.com/kaysoro/discordgo-i18n
 Import the package into your project.
 
 ```go
-import i18n "github.com/kaysoro/discordgo-i18n"
+import i18n "github.com/kstoums/discordgo-i18n"
 ```
+
+Initialize the logger adapter with a logger that implements the logger.Logger interface
+```go
+loggerAdapter := NewDiscordGoI18nLoggerAdapter(DiscordGoI18nLoggerAdapterDeps{Logger: your_logger_implementing_the_logger.Logger_interface})
+```
+
+Initialize the i18n translator with your logger adapter
+````go
+i18nTranslator := i18n.NewTranslator(loggerAdapter)
+````
 
 Load bundles for locales to support with a local filepath.
 
@@ -55,7 +65,7 @@ err := i18n.LoadBundleContent(discordgo.Danish, map[string]any{"my": "content"})
 ```
 
 The bundle format must respect the schema below; note [text/template](http://golang.org/pkg/text/template/) syntax is used to inject variables.  
-For a given key, value can be string, string array to randomize translations or even deep structures to group translations as wanted. In case any other type is provided, it is mapped to string automatically.
+For a given key, value can be string, string array or even deep structures to group translations as wanted. In case any other type is provided, it is mapped to string automatically.
 
 ```json
 {
